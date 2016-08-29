@@ -7,10 +7,10 @@ import hashlib
 import ntpath
 from StringIO import StringIO
 
-from sflock.signatures import Signatures
 
 class Unpacker(object):
     """Abstract class for Unpacker engines."""
+
     name = None
     author = None
 
@@ -33,17 +33,35 @@ class Unpacker(object):
     def determine(self):
         pass
 
-    def parse_items(self, entries, duplicates):
+    def parse_items(self, entries, duplicates, recursive=True):
+        # @TO-DO: fix import
+
+        from sflock.main import analyize_file
+        from sflock.unpack import plugins
+        from sflock.signatures import Signatures
+
         tmp_data = []
 
         for entry in entries.files():
-            if entry.filepath.endswith((".gz", ".tar", ".bz2", ".zip", ".tgz")):
-                f = File(contents=entry.contents)
-                signature = f.get_signature()
+            f = analyize_file(filepath=entry.filepath, contents=entry.contents)
+            if isinstance(f, list):
+                e = "e"
 
-                container = self.plugins[signature["unpacker"]](f)
+            signature = f.signature()
+
+            if signature and recursive:
+                container = plugins[signature["unpacker"]](f)
                 entry.children = container.unpack(mode=signature["mode"],
                                                   duplicates=duplicates)
+
+            # if entry.filepath.endswith((".gz", ".tar", ".bz2", ".zip", ".tgz")):
+            #
+            #     f = File(contents=entry.contents)
+            #     signature = f.signature()
+            #
+            #     container = self.plugins[signature["unpacker"]](f)
+            #     entry.children = container.unpack(mode=signature["mode"],
+            #                                       duplicates=duplicates)
 
             tmp_data.append(entry)
 
@@ -103,7 +121,9 @@ class File(object):
     def from_path(self, filepath):
         return File(filepath, open(filepath, "rb").read())
 
-    def get_signature(self):
+    def signature(self):
+        from sflock.signatures import Signatures
+
         for k, v in Signatures.signatures.iteritems():
             if self.contents.startswith(k):
                 return v
